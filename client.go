@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	_ "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,27 +22,29 @@ func NewQueueClient(serverURL string) *QueueClient {
 
 func (qc *QueueClient) Push(key, value string) string {
 	url := qc.ServerURL + "/push"
-	data := map[string]string{"queue_name": key, "value": value}
+	encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
+	data := map[string]string{"key": key, "value": encodedValue}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return "Failed to encode JSON"
+		return fmt.Sprintf("Failed to encode JSON: %v", err)
 	}
 
 	response, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "HTTP request failed"
+		return fmt.Sprintf("HTTP request failed: %v", err)
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-
+			fmt.Printf("Failed to close response body: %v", err)
 		}
 	}(response.Body)
 
 	if response.StatusCode == 200 {
 		return "Message pushed successfully."
 	} else {
-		return "Failed to push message."
+		body, _ := ioutil.ReadAll(response.Body)
+		return fmt.Sprintf("Failed to push message. Status: %d, Response: %s", response.StatusCode, string(body))
 	}
 }
 
@@ -88,12 +92,21 @@ func (qc *QueueClient) Subscribe(f func(string, string)) {
 }
 
 func main() {
-	serverURL := "87.247.170.145:8000/"
+	serverURL := "http://87.247.170.145:8000"
 	client := NewQueueClient(serverURL)
+
 	subscriptionFunc := func(key, value string) {
 		fmt.Printf("Received message: key=%s, value=%s\n", key, value)
 	}
-	client.Subscribe(subscriptionFunc)
 
+	fmt.Println(client.Push("testqueue", "testmessage"))
+	time.Sleep(1 * time.Second)
+
+	_, _, err := client.Pull()
+	if err != nil {
+		return
+	}
+
+	client.Subscribe(subscriptionFunc)
 	select {}
 }
