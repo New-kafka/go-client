@@ -95,18 +95,20 @@ func main() {
 	serverURL := "http://87.247.170.145:8000"
 	client := NewQueueClient(serverURL)
 
-	subscriptionFunc := func(key, value string) {
-		fmt.Printf("Received message: key=%s, value=%s\n", key, value)
+	// Push a message
+	fmt.Println(client.Push("queue", "message"))
+
+	for {
+		key, value, err := client.Pull()
+		if key == "" {
+			fmt.Println("queue is empty!")
+		} else {
+			fmt.Printf("Received message: key=%s, value=%s\n", key, value)
+		}
+		if err != nil {
+			fmt.Printf("Failed to pull message: %v", err)
+		}
+		time.Sleep(1 * time.Second)
+
 	}
-
-	fmt.Println(client.Push("testqueue", "testmessage"))
-	time.Sleep(1 * time.Second)
-
-	_, _, err := client.Pull()
-	if err != nil {
-		return
-	}
-
-	client.Subscribe(subscriptionFunc)
-	select {}
 }
